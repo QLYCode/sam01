@@ -36,7 +36,7 @@ parser.add_argument('--fold', type=str,
 parser.add_argument('--sup_type', type=str,
                     default='scribble', help='supervision type')
 parser.add_argument('--model', type=str,
-                    default='progressmix', help='model_name')
+                    default='unet', help='model_name')
 parser.add_argument('--num_classes', type=int,  default=4,
                     help='output channel of network')
 parser.add_argument('--max_iterations', type=int,

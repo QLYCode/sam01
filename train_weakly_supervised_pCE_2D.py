@@ -39,13 +39,13 @@ parser.add_argument('--sup_type', type=str,
                     default='scribble', help='supervision type')
 # progressmix unet
 parser.add_argument('--model', type=str,
-                    default='unet', help='model_name')
+                    default='efficientumamba', help='model_name')
 
 parser.add_argument('--num_classes', type=int,  default=4,
                     help='output channel of network')
 parser.add_argument('--max_iterations', type=int,
                     default=30000, help='maximum epoch number to train')
-parser.add_argument('--batch_size', type=int, default=24,
+parser.add_argument('--batch_size', type=int, default=8,
                     help='batch_size per gpu')
 parser.add_argument('--deterministic', type=int,  default=1,
                     help='whether use deterministic training')
