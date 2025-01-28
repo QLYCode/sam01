@@ -54,11 +54,12 @@ class BaseDataSets(Dataset):
                 self.sample_list.extend(new_data_list)
 
         elif self.split == 'val':
-            self.all_volumes = os.listdir(self._base_dir + "/ACDC_training_volumes")
+            self.all_volumes = os.listdir(self._base_dir + "/ACDC_training_slices")
             self.sample_list = []
             for ids in test_ids:
                 new_data_list = list(filter(lambda x: re.match(
                     '{}.*'.format(ids), x) != None, self.all_volumes))
+                new_data_list = [item for item in new_data_list if ".nii.gz" not in item]
                 self.sample_list.extend(new_data_list)
 
         # if num is not None and self.split == "train":
@@ -133,22 +134,17 @@ class BaseDataSets(Dataset):
                             "/ACDC_training_slices/{}".format(case), 'r')
         else:
             h5f = h5py.File(self._base_dir +
-                            "/ACDC_training_volumes/{}".format(case), 'r')
+                            "/ACDC_training_slices/{}".format(case), 'r')
         image = h5f['image'][:]
         label = h5f['label'][:]
         sample = {'image': image, 'label': label}
         if self.split == "train":
-            image = h5f['image'][:]
             if self.sup_type == "random_walker":
                 label = pseudo_label_generator_acdc(image, h5f["scribble"][:])
             else:
                 label = h5f[self.sup_type][:]
             sample = {'image': image, 'label': label}
-            sample = self.transform(sample)
-        else:
-            image = h5f['image'][:]
-            label = h5f['label'][:]
-            sample = {'image': image, 'label': label}
+        sample = self.transform(sample)
         sample["idx"] = idx
         return sample
 
@@ -187,6 +183,23 @@ class RandomGenerator(object):
                 image, label = random_rotate(image, label, cval=4)
             else:
                 image, label = random_rotate(image, label, cval=0)
+        x, y = image.shape
+        image = zoom(
+            image, (self.output_size[0] / x, self.output_size[1] / y), order=0)
+        label = zoom(
+            label, (self.output_size[0] / x, self.output_size[1] / y), order=0)
+        image = torch.from_numpy(
+            image.astype(np.float32)).unsqueeze(0)
+        label = torch.from_numpy(label.astype(np.uint8))
+        sample = {'image': image, 'label': label}
+        return sample
+    
+class ResizeGenerator(object):
+    def __init__(self, output_size):
+        self.output_size = output_size
+
+    def __call__(self, sample):
+        image, label = sample['image'], sample['label']
         x, y = image.shape
         image = zoom(
             image, (self.output_size[0] / x, self.output_size[1] / y), order=0)

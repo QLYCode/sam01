@@ -5,23 +5,23 @@ from networks.unet import UNet, UNet_DS, DynamicMix, UNet_CCT_3H
 from networks.EfficientUMamba import EfficientUMamba
 
 
-def net_factory(net_type="unet", in_chns=1, class_num=3):
+def net_factory(net_type="unet", in_chns=1, class_num=3, device="cuda"):
     if net_type == "unet":
-        net = UNet(in_chns=in_chns, class_num=class_num).cuda()
+        net = UNet(in_chns=in_chns, class_num=class_num).to(device)
     elif net_type == "unet_cct_3h":
-        net = UNet_CCT_3H(in_chns=in_chns, class_num=class_num).cuda()
+        net = UNet_CCT_3H(in_chns=in_chns, class_num=class_num).to(device)
     elif net_type == "unet_ds":
-        net = UNet_DS(in_chns=in_chns, class_num=class_num).cuda()
+        net = UNet_DS(in_chns=in_chns, class_num=class_num).to(device)
     elif net_type == "pnet":
-        net = PNet2D(in_chns, class_num, 64, [1, 2, 4, 8, 16]).cuda()
+        net = PNet2D(in_chns, class_num, 64, [1, 2, 4, 8, 16]).to(device)
     elif net_type == "dynamicmix":
-        net = DynamicMix(in_chns=in_chns, class_num=class_num).cuda()
+        net = DynamicMix(in_chns=in_chns, class_num=class_num).to(device)
     elif net_type == "cyclemix":
         net = CycleMix2D(feature_scale=4, n_classes=class_num, in_channels=in_chns, is_batchnorm=True)
     elif net_type == "progressmix":
-        net = ProgressMix(in_chns=in_chns, class_num=class_num).cuda()
+        net = ProgressMix(in_chns=in_chns, class_num=class_num).to(device)
     elif net_type == "efficientumamba":
-        net = EfficientUMamba(in_chns=in_chns, class_num=class_num).cuda()
+        net = EfficientUMamba(in_chns=in_chns, class_num=class_num).to(device)
     else:
         net = None
     return net
