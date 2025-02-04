@@ -4,6 +4,8 @@ import torch.nn as nn
 from torch.autograd import Variable
 from torch.nn import functional as F
 
+import utils.edge_helpers as edge_helpers
+
 
 def dice_loss(score, target):
     target = target.float()
@@ -396,3 +398,71 @@ class SupConLoss(nn.Module):
         loss = loss.view(anchor_count, batch_size).mean()
 
         return loss
+
+
+class BoundaryAlignmentLoss(nn.Module):
+    def __init__(self, ignore_index=4, gamma=2.0, edge_weight=5.0, margin=0.3, sobel_threshold=0.15, k=15, kernel_sizes=[3, 7, 15]):
+        super().__init__()
+        self.ignore_index = ignore_index
+        self.gamma = gamma  # Focal loss parameter
+        self.edge_weight = edge_weight  # Weight for edge pixels
+        self.margin = margin  # Margin for separation
+        self.sobel_threshold = sobel_threshold  # Threshold for edge detection
+        self.k = k  # Number of pseudo edges to generate
+        self.kernel_sizes = kernel_sizes  # Kernel sizes for edge detection
+        
+    def _differentiable_onehot(self, logits):
+        # Differentiable argmax approximation using Gumbel-Softmax
+        return F.gumbel_softmax(logits, tau=0.1, hard=True, dim=1)
+    
+    def _edge_detection(self, x):
+        # One-hot aware edge detection
+        sobel_x = torch.tensor([[[[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]]]],
+                             dtype=torch.float32, device=x.device)
+        sobel_y = torch.tensor([[[[1, 2, 1], [0, 0, 0], [-1, -2, -1]]]],
+                             dtype=torch.float32, device=x.device)
+        
+        # Detect edges per channel
+        edges = []
+        for c in range(x.size(1)):
+            if c == self.ignore_index:
+                continue
+            channel = x[:, c]
+            ex = F.conv2d(channel, sobel_x, padding=1)
+            ey = F.conv2d(channel, sobel_y, padding=1)
+            edges.append((ex**2 + ey**2 + 1e-6).sqrt())
+        
+        return torch.stack(edges, dim=1)
+    
+    def _asymmetric_focal_loss(self, pred, target):
+        # Focal loss with asymmetric weighting for edge/non-edge
+        pos_weight = target * self.edge_weight
+        bce = F.binary_cross_entropy_with_logits(pred, target, reduction='none')
+        pt = torch.exp(-bce)
+        focal = (1 - pt) ** self.gamma
+        
+        # Margin adjustment for false negatives
+        false_negatives = (pred < self.margin) & (target > 0)
+        focal[false_negatives] *= 2.0
+        
+        return (focal * bce * pos_weight).mean()
+    
+    def forward(self, logits, images, scribbles):
+        targets = edge_helpers.get_image_pseudo_edge(images, scribbles, self.sobel_threshold, self.k, self.kernel_sizes, self.ignore_index)
+        # Differentiable one-hot with ignored class
+        onehot = self._differentiable_onehot(logits)
+        onehot[:, self.ignore_index] = 0  # Mask background
+        
+        # Edge detection on one-hot encoding
+        pred_edges = self._edge_detection(onehot)
+        # Combine channel-wise losses
+        loss = 0
+        for c in range(pred_edges.size(1)):
+            if c == self.ignore_index:
+                continue
+            channel_pred = pred_edges[:, c]
+            channel_target = targets[:, c]
+            loss += self._asymmetric_focal_loss(channel_pred, channel_target)
+        
+        return loss / (pred_edges.size(1) - 1)  # Normalize by active classes
+
