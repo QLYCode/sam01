@@ -2,6 +2,7 @@ data/
 MedSAM/
 model/
 
+temp.py
 debug.py
 3debug.py
 debug2.py
